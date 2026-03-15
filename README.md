@@ -100,7 +100,7 @@ See [ERROR.md](./ERROR.md) for detailed investigation of this issue.
 ## Prerequisites
 
 - Docker running
-- API key for your chosen provider:
+- At least one provider credential for the model you want to run:
   ```bash
   # Anthropic (OAuth token preferred)
   export ANTHROPIC_OAUTH_TOKEN="..."
@@ -112,18 +112,56 @@ See [ERROR.md](./ERROR.md) for detailed investigation of this issue.
 
   # Google
   export GEMINI_API_KEY="..."
+
+  # Other supported providers
+  export GROQ_API_KEY="..."
+  export XAI_API_KEY="..."
+  export OPENROUTER_API_KEY="..."
+
+  # AWS Bedrock
+  export AWS_PROFILE="claude-code"
+  export AWS_REGION="us-east-1"
+  # or export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN directly
   ```
+
+## Authentication and installation model
+
+`pi-terminal-bench` does **not** reuse your already-installed local `pi` binary directly.
+
+Instead, Harbor creates a clean evaluation environment and installs `pi` inside it using npm from `install-pi.sh.j2`. That means:
+
+- it uses a **separate clean PI installation** for benchmark runs
+- it **can** use provider credentials forwarded from your host environment
+- it does **not** automatically reuse your local interactive PI login/session/config unless you explicitly build support for copying or mounting that state
+
+In practice, the most reliable setup is to provide model/provider credentials through environment variables and run PI in a clean benchmark environment.
+
+For AWS Bedrock-backed PI runs, the Harbor adapter now forwards AWS environment variables such as `AWS_PROFILE`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` into the clean PI runtime.
 
 ## Usage
 
 ### Run with pi agent on Terminal-Bench
 
 ```bash
-# Run locally with Docker
+# Run locally with Docker (Anthropic example)
 harbor run \
   -d terminal-bench@2.0 \
   --agent-import-path pi_terminal_bench:PiAgent \
   -m anthropic/claude-sonnet-4-5 \
+  -n 4
+
+# Run locally with Docker (OpenAI example)
+harbor run \
+  -d terminal-bench@2.0 \
+  --agent-import-path pi_terminal_bench:PiAgent \
+  -m openai/gpt-5 \
+  -n 4
+
+# Run locally with Docker (AWS Bedrock example)
+AWS_PROFILE=claude-code AWS_REGION=us-east-1 harbor run \
+  -d terminal-bench@2.0 \
+  --agent-import-path pi_terminal_bench:PiAgent \
+  -m bedrock/sonnet-4-6 \
   -n 4
 
 # Run on cloud (Daytona)
@@ -134,6 +172,19 @@ harbor run \
   -m anthropic/claude-sonnet-4-5 \
   --env daytona \
   -n 32
+```
+
+Or use the helper script:
+
+```bash
+# Anthropic
+MODEL=anthropic/claude-sonnet-4-5 ./run.sh
+
+# OpenAI
+OPENAI_API_KEY=... MODEL=openai/gpt-5 ./run.sh
+
+# AWS Bedrock
+AWS_PROFILE=claude-code AWS_REGION=us-east-1 MODEL=bedrock/sonnet-4-6 ./run.sh
 ```
 
 ### Validate setup with oracle
@@ -152,6 +203,12 @@ harbor run \
   --task-ids <task-id>
 ```
 
+Helper script form:
+
+```bash
+TASK_IDS=<task-id> ./run.sh
+```
+
 ## Leaderboard Submission
 
 To submit results to the Terminal-Bench leaderboard:
@@ -164,6 +221,8 @@ harbor run \
   --k 5 \
   --jobs-dir "./pi-tbench-results"
 ```
+
+You can also set `MODEL=...` and `JOBS_DIR=...` when using `./run.sh`.
 
 Then email the jobs directory to:
 - mchlmerrill@gmail.com

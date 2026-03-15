@@ -43,10 +43,17 @@ class PiAgent(BaseInstalledAgent):
             "ANTHROPIC_OAUTH_TOKEN",
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
             "GEMINI_API_KEY",
             "GROQ_API_KEY",
             "XAI_API_KEY",
             "OPENROUTER_API_KEY",
+            "AWS_PROFILE",
+            "AWS_REGION",
+            "AWS_DEFAULT_REGION",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
         ]:
             if key in os.environ:
                 env[key] = os.environ[key]
