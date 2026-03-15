@@ -37,6 +37,7 @@ if [ "$has_standard_provider_cred" -ne 1 ] && [ "$has_aws_cred" -ne 1 ]; then
 fi
 
 # Resolve AWS credentials from profile/SSO if requested
+aws_profile_resolved=0
 if [ -n "${AWS_PROFILE:-}" ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
   if ! command -v aws >/dev/null 2>&1; then
     echo "Error: AWS CLI is required when using AWS_PROFILE"
@@ -45,6 +46,12 @@ if [ -n "${AWS_PROFILE:-}" ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
 
   echo "Resolving AWS credentials from profile: ${AWS_PROFILE}"
   eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env-no-export)"
+  aws_profile_resolved=1
+
+  # Unset AWS_PROFILE so it is NOT forwarded into the container.
+  # The container has no ~/.aws/config, so the profile name is useless there
+  # and causes the AWS SDK to ignore the static creds we just resolved.
+  unset AWS_PROFILE
 fi
 
 if [ -n "${AWS_PROFILE:-}" ] || [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then

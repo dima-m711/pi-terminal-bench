@@ -68,18 +68,22 @@ class PiAgent(BaseInstalledAgent):
         session_file = output_dir / "session.jsonl"
         json_output_file = output_dir / "pi-output.jsonl"
 
+        pi_command = (
+            "export NVM_DIR=\"$HOME/.nvm\" && "
+            "[ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\" && "
+            f"pi --print --mode json --session {session_file} "
+            f"{model_args} "
+            f"{escaped_instruction} "
+            f"2>&1 | tee {json_output_file}"
+        )
+
         return [
             ExecInput(
                 command=f"mkdir -p {output_dir}",
                 env=env,
             ),
             ExecInput(
-                command=(
-                    f"pi --print --mode json --session {session_file} "
-                    f"{model_args} "
-                    f"{escaped_instruction} "
-                    f"2>&1 | tee {json_output_file}"
-                ),
+                command=pi_command,
                 env=env,
             ),
         ]
