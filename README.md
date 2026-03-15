@@ -138,6 +138,8 @@ In practice, the most reliable setup is to provide model/provider credentials th
 
 For AWS Bedrock-backed PI runs, the Harbor adapter now forwards AWS environment variables such as `AWS_PROFILE`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` into the clean PI runtime.
 
+When `AWS_PROFILE` is set, `run.sh` will attempt to resolve concrete credentials using the AWS CLI via `aws configure export-credentials --profile ...` and validate them with `aws sts get-caller-identity` before starting Harbor.
+
 ## Usage
 
 ### Run with pi agent on Terminal-Bench
@@ -185,6 +187,9 @@ OPENAI_API_KEY=... MODEL=openai/gpt-5 ./run.sh
 
 # AWS Bedrock
 AWS_PROFILE=claude-code AWS_REGION=us-east-1 MODEL=bedrock/sonnet-4-6 ./run.sh
+
+# Enable Harbor debug logging and save output to logs/
+DEBUG=1 ./run.sh
 ```
 
 ### Validate setup with oracle
@@ -206,8 +211,10 @@ harbor run \
 Helper script form:
 
 ```bash
-TASK_IDS=<task-id> ./run.sh
+TASK_IDS=<task-name-or-glob> ./run.sh
 ```
+
+The helper script saves combined Harbor stdout/stderr to `./logs/` by default. You can override this with `LOG_DIR=...` or `LOG_FILE=...`.
 
 ## Leaderboard Submission
 

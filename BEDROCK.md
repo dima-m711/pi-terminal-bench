@@ -8,8 +8,10 @@ This repo can run PI against Bedrock-backed models by forwarding AWS credentials
 cd pi-terminal-bench
 export AWS_PROFILE=claude-code
 export AWS_REGION=us-east-1
-MODEL=bedrock/sonnet-4-6 ./run.sh
+MODEL=amazon-bedrock/global.anthropic.claude-sonnet-4-6 ./run.sh
 ```
+
+If your AWS profile is SSO-backed, `run.sh` will attempt to resolve concrete credentials using the AWS CLI before launching Harbor.
 
 You can also use direct credentials instead of a profile:
 
@@ -26,10 +28,15 @@ MODEL=bedrock/sonnet-4-6 ./run.sh
 ```bash
 AWS_PROFILE=claude-code \
 AWS_REGION=us-east-1 \
-MODEL=bedrock/sonnet-4-6 \
-TASK_IDS=<task-id> \
+MODEL=amazon-bedrock/global.anthropic.claude-sonnet-4-6 \
+TASK_IDS=<task-name-or-glob> \
+N_ATTEMPTS=1 \
+N_CONCURRENT=1 \
+DEBUG=1 \
 ./run.sh
 ```
+
+This prints Harbor debug logs and also saves them under `./logs/`.
 
 ## Important note
 
