@@ -36,49 +36,71 @@ if [ "$has_standard_provider_cred" -ne 1 ] && [ "$has_aws_cred" -ne 1 ]; then
     exit 1
 fi
 
-# Resolve AWS credentials from profile/SSO if requested
+# AWS credential strategy:
+#   1. If AWS_PROFILE is set and ~/.aws exists → mount ~/.aws into container (no token expiry)
+#   2. If AWS_PROFILE is set but no ~/.aws → resolve static STS creds (may expire)
+#   3. If AWS_ACCESS_KEY_ID is set directly → use as-is
+
+aws_mount_mode=0
 aws_profile_resolved=0
+
 if [ -n "${AWS_PROFILE:-}" ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-  if ! command -v aws >/dev/null 2>&1; then
-    echo "Error: AWS CLI is required when using AWS_PROFILE"
-    exit 1
+  if [ -d "$HOME/.aws" ]; then
+    # Approach A: Mount ~/.aws into the container for auto-refreshing credentials
+    echo "Mounting ~/.aws into container for profile: ${AWS_PROFILE}"
+    export HOST_AWS_DIR="$HOME/.aws"
+    aws_mount_mode=1
+
+    # Validate credentials on the host before starting
+    echo "Validating AWS credentials for profile: ${AWS_PROFILE}"
+    aws sts get-caller-identity --profile "$AWS_PROFILE" >/dev/null
+  else
+    # Fallback: resolve static creds (may expire on long runs)
+    if ! command -v aws >/dev/null 2>&1; then
+      echo "Error: AWS CLI is required when using AWS_PROFILE"
+      exit 1
+    fi
+
+    echo "Warning: ~/.aws not found — resolving static STS credentials (may expire on long runs)"
+    echo "Resolving AWS credentials from profile: ${AWS_PROFILE}"
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env-no-export)"
+    aws_profile_resolved=1
+
+    # Unset AWS_PROFILE so it is NOT forwarded into the container.
+    # The container has no ~/.aws/config, so the profile name is useless there
+    # and causes the AWS SDK to ignore the static creds we just resolved.
+    unset AWS_PROFILE
   fi
-
-  echo "Resolving AWS credentials from profile: ${AWS_PROFILE}"
-  eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env-no-export)"
-  aws_profile_resolved=1
-
-  # Unset AWS_PROFILE so it is NOT forwarded into the container.
-  # The container has no ~/.aws/config, so the profile name is useless there
-  # and causes the AWS SDK to ignore the static creds we just resolved.
-  unset AWS_PROFILE
 fi
 
-if [ -n "${AWS_PROFILE:-}" ] || [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
-  if ! command -v aws >/dev/null 2>&1; then
-    echo "Error: AWS CLI is required for Bedrock credential validation"
-    exit 1
-  fi
+if [ "$aws_mount_mode" -ne 1 ]; then
+  # Validate static creds if present
+  if [ -n "${AWS_PROFILE:-}" ] || [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+    if ! command -v aws >/dev/null 2>&1; then
+      echo "Error: AWS CLI is required for Bedrock credential validation"
+      exit 1
+    fi
 
-  AWS_STS_ENV=( )
-  if [ -n "${AWS_REGION:-}" ]; then
-    AWS_STS_ENV+=(AWS_REGION="$AWS_REGION")
-  fi
-  if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
-    AWS_STS_ENV+=(AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION")
-  fi
-  if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
-    AWS_STS_ENV+=(AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID")
-  fi
-  if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-    AWS_STS_ENV+=(AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY")
-  fi
-  if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
-    AWS_STS_ENV+=(AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN")
-  fi
+    AWS_STS_ENV=( )
+    if [ -n "${AWS_REGION:-}" ]; then
+      AWS_STS_ENV+=(AWS_REGION="$AWS_REGION")
+    fi
+    if [ -n "${AWS_DEFAULT_REGION:-}" ]; then
+      AWS_STS_ENV+=(AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION")
+    fi
+    if [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+      AWS_STS_ENV+=(AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID")
+    fi
+    if [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+      AWS_STS_ENV+=(AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY")
+    fi
+    if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+      AWS_STS_ENV+=(AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN")
+    fi
 
-  echo "Validating AWS credentials with sts get-caller-identity"
-  env "${AWS_STS_ENV[@]}" aws sts get-caller-identity >/dev/null
+    echo "Validating AWS credentials with sts get-caller-identity"
+    env "${AWS_STS_ENV[@]}" aws sts get-caller-identity >/dev/null
+  fi
 fi
 
 # Check Docker is running
